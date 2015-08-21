@@ -11,6 +11,7 @@ cell.
 
 from __future__ import division
 import sys
+import cp_solver
 
 
 def read_problem(filename):
@@ -21,16 +22,17 @@ def read_problem(filename):
     the following fields:
     - 'size': the number of rows/columns (assumed to be the same;
       an error will be raised if there is a size mismatch)
-    - 'cells': the puzzle itself, a dictionary with (row, column)
+    - 'variables': the puzzle itself, a dictionary with (row, column)
       tuples as keys and the corresponding value 'r', 'b', or '.'
     - 'state': initially 'unsolved', to be updated by other methods
     """
     with open(filename, 'r') as problem_file:
-        problem = [[c for c in line if c in '.rb'] for line in problem_file]
+        problem = [['rb' if c == '.' else c for c in line if c in '.rb']
+                   for line in problem_file]
     size = len(problem)
     assert all(len(v) == size for v in problem)
     cells = {(r, c): problem[r][c] for r in range(size) for c in range(size)}
-    problem_dict = {'size': size, 'cells': cells, 'state': 'unsolved'}
+    problem_dict = {'size': size, 'variables': cells, 'state': 'unsolved'}
     return problem_dict
 
 
@@ -40,9 +42,14 @@ def print_problem(problem):
     reading it from file
     """
     size = problem['size']
-    cells = problem['cells']
+    cells = problem['variables']
     for row in range(size):
-        print ''.join(cells[(row, col)] for col in range(size))
+        for col in range(size):
+            cell = cells[(row, col)]
+            if len(cell) > 1:
+                cell = '.'
+            print cell,
+        print
     print
 
 
@@ -52,9 +59,9 @@ def solved(problem):
     True/False accordingly
 
     To actually assess whether the problem is satisfactorily
-    solved use evaluate_status(problem)
+    solved use evaluate_state(problem)
     """
-    return all(cell in 'rb' for cell in problem['cells'].values())
+    return all(len(cell) == 1 for cell in problem['variables'].values())
 
 
 def eliminate_contiguous(problem):
@@ -68,8 +75,8 @@ def eliminate_contiguous(problem):
     """
     changes = False
     size = problem['size']
-    cells = problem['cells']
-    # See eliminate_contiguous_lines() for the use of masks
+    cells = problem['variables']
+    # See eliminate_contiguous_line() for the use of masks
     # Apply column-wise, up
     changes |= eliminate_contiguous_line(cells,
                                          rows=range(size - 2),
@@ -121,7 +128,7 @@ def eliminate_contiguous_line(cells, rows, cols, mask):
     for row in rows:
         for col in cols:
             this_cell = cells[(row, col)]
-            if this_cell in 'rb':
+            if len(this_cell) == 1:
                 continue
             cell1 = cells[(row + mask[0][0], col + mask[0][1])]
             cell2 = cells[(row + mask[1][0], col + mask[1][1])]
@@ -146,11 +153,11 @@ def full_colour(problem):
     changes = False
     size = problem['size']
     cells_same_colour = size // 2
-    cells = problem['cells']
+    cells = problem['variables']
     # See if each row already has all the erquired cells of one colour
     for row in range(size):
-        reds = len(1 for col in range(size) if cells[(row, col)] == 'r')
-        blues = len(1 for col in range(size) if cells[(row, col)] == 'b')
+        reds = sum(1 for col in range(size) if cells[(row, col)] == 'r')
+        blues = sum(1 for col in range(size) if cells[(row, col)] == 'b')
         if reds == blues == cells_same_colour:
             continue  # Nothing to do here, all cells set
         if reds == cells_same_colour:
@@ -160,13 +167,13 @@ def full_colour(problem):
         else:
             continue  # The required number is not reached by either colour
         for col in range(size):  # Update unset cells with new colour
-            if cells[(row, col)] == '.':
+            if len(cells[(row, col)]) > 1:
                 cells[(row, col)] = new_colour
                 changes = True
     # See if each column already has all the erquired cells of one colour
     for col in range(size):
-        reds = len(1 for row in range(size) if cells[(row, col)] == 'r')
-        blues = len(1 for row in range(size) if cells[(row, col)] == 'b')
+        reds = sum(1 for row in range(size) if cells[(row, col)] == 'r')
+        blues = sum(1 for row in range(size) if cells[(row, col)] == 'b')
         if reds == blues == cells_same_colour:
             continue  # Nothing to do here, all cells set
         if reds == cells_same_colour:
@@ -176,13 +183,13 @@ def full_colour(problem):
         else:
             continue  # The required number is not reached by either colour
         for row in range(size):  # Update unset cells with new colour
-            if cells[(row, col)] == '.':
+            if len(cells[(row, col)]) > 1:
                 cells[(row, col)] = new_colour
                 changes = True
     return changes
 
 
-def evaluate_status(problem, report=False):
+def evaluate_state(problem, report=False):
     """
     Check the state of a problem. This function does not return
     anything, but modifies the 'state' field of the problem:
@@ -207,7 +214,7 @@ def evaluate_status(problem, report=False):
             """print() wrapper to skip logging"""
             pass
   
-    cells = problem['cells']
+    cells = problem['variables']
     size = problem['size']
 
     # row_or_col will be used first as column index, then as row index
@@ -227,7 +234,7 @@ def evaluate_status(problem, report=False):
             return
         # infeasible if three adjacent cells of the same colour
         for pos in range(size - 2):
-            if col[pos] == col[pos+1] == col[pos+2] != '.':
+            if col[pos] == col[pos+1] == col[pos+2] != 'rb':
                 problem['state'] = 'infeasible'
                 conditional_print('three in a row - column', row_or_col)
                 return
@@ -257,7 +264,7 @@ def evaluate_status(problem, report=False):
             conditional_print('too many blues on row', row_or_col)
             return
         for pos in range(size - 2):
-            if row[pos] == row[pos+1] == row[pos+2] != '.':
+            if row[pos] == row[pos+1] == row[pos+2] != 'rb':
                 problem['state'] = 'infeasible'
                 conditional_print('three in a row - row', row_or_col)
                 return
@@ -280,47 +287,6 @@ def evaluate_status(problem, report=False):
         problem['state'] = 'solved'
 
 
-def get_undecided_cell(problem):
-    """
-    Return one cell that is still unset in the problem as
-    a (row, column) tuple
-    """
-    size = problem['size']
-    for row in range(size):
-        for col in range(size):
-            if problem['cells'][(row, col)] == '.':
-                return row, col
-
-
-def choose(problem, row, col, colour):
-    """
-    Return a new problem that is a copy of the one provided with
-    the (row, col) cell set to colour
-
-    This function is used for branching, and prints the selection
-    made.
-    """
-    new_problem = problem.copy()
-    new_problem['cells'] = problem['cells'].copy()
-    new_problem['cells'][(row, col)] = colour
-    print "choosing:", row, col, colour
-    return new_problem
-
-
-def constraint_propagation(problem):
-    """
-    Fill in inferrable cells by constraint propagation
-
-    The cells dictionary is updated directly. Returns True
-    if any changes were made, False otherwise.
-    """
-    changes = True
-    while changes:
-        changes = False
-        changes |= eliminate_contiguous(problem)
-        changes |= full_colour(problem)
-
-
 def solve(problem):
     """
     Solve a 0hh1 problem
@@ -329,37 +295,9 @@ def solve(problem):
     process. The problem 'state' field will be set to
     'solved' or 'infeasible' as adequate.
     """
-    # Recursively explore the solution space:
-    # - Fill in inferrable cells (constraint propagation)
-    # - If this fully solves the problem, or identifies
-    #   infeasibility, return the problem
-    # - Otherwise select an unset cell, try to solve the
-    #   problem with that cell set to 'r', if it doesn't
-    #   succeed try 'b' in that cell
-    # This results in a depth-first search of the solution
-    # (binary) tree, with aggressive pruning (both from the
-    #  leaps obtained by constraint propagation and by
-    # abandoning a branch as soon as infeasibility is
-    # identified, even if not all cells are set)
-
-    constraint_propagation(problem)
-    evaluate_status(problem)
-    if problem['state'] in ('solved', 'infeasible'):
-        return problem
-
-    # select cell to branch on
-    row, col = get_undecided_cell(problem)
-
-    # recursion on red branch
-    new_problem = choose(problem, row, col, 'r')
-    candidate_sol = solve(new_problem)
-    if candidate_sol['state'] == 'solved':
-        return candidate_sol
-
-    # recursion on blue branch
-    new_problem = choose(problem, row, col, 'b')
-    candidate_sol = solve(new_problem)
-    return candidate_sol  # solved or infeasible
+    constraints = [eliminate_contiguous, full_colour]
+    solution = cp_solver.solve(problem, constraints, evaluate_state)
+    return solution
 
 
 def main():
@@ -383,7 +321,7 @@ def main():
     print_problem(solution)
     # If infeasible, show why
     if solution['state'] == 'infeasible':
-        evaluate_status(solution, report=True)
+        evaluate_state(solution, report=True)
 
 
 if __name__ == '__main__':
