@@ -25,10 +25,10 @@ def read_problem(filename):
       tuples as keys and the corresponding value 'r', 'b', or '.'
     - 'state': initially 'unsolved', to be updated by other methods
     """
-    with open(filename, 'r') as f:
-        problem = [[c for c in line if c in '.rb'] for line in f]
+    with open(filename, 'r') as problem_file:
+        problem = [[c for c in line if c in '.rb'] for line in problem_file]
     size = len(problem)
-    assert all(map(lambda v: len(v) == size, problem))
+    assert all(len(v) == size for v in problem)
     cells = {(r, c): problem[r][c] for r in range(size) for c in range(size)}
     problem_dict = {'size': size, 'cells': cells, 'state': 'unsolved'}
     return problem_dict
@@ -39,10 +39,10 @@ def print_problem(problem):
     Print the problem using the same specification as when
     reading it from file
     """
-    n = problem['size']
+    size = problem['size']
     cells = problem['cells']
-    for row in range(n):
-      print ''.join(cells[(row, col)] for col in range(n))
+    for row in range(size):
+        print ''.join(cells[(row, col)] for col in range(size))
     print
 
 
@@ -52,9 +52,9 @@ def solved(problem):
     True/False accordingly
 
     To actually assess whether the problem is satisfactorily
-    solved use check_feasibility(problem)
+    solved use evaluate_status(problem)
     """
-    return all(map(lambda c: c in 'rb', problem['cells'].values()))
+    return all(cell in 'rb' for cell in problem['cells'].values())
 
 
 def eliminate_contiguous(problem):
@@ -67,38 +67,38 @@ def eliminate_contiguous(problem):
     value is True if changes were made, False otherwise.
     """
     changes = False
-    n = problem['size']
+    size = problem['size']
     cells = problem['cells']
     # See eliminate_contiguous_lines() for the use of masks
     # Apply column-wise, up
     changes |= eliminate_contiguous_line(cells,
-                                         rows=range(n - 2),
-                                         cols=range(n),
+                                         rows=range(size - 2),
+                                         cols=range(size),
                                          mask=[(1, 0), (2, 0)])
     # Apply column-wise, down
     changes |= eliminate_contiguous_line(cells,
-                                         rows=range(2, n),
-                                         cols=range(n),
+                                         rows=range(2, size),
+                                         cols=range(size),
                                          mask=[(-1, 0), (-2, 0)])
     # Apply column-wise, gap
     changes |= eliminate_contiguous_line(cells,
-                                         rows=range(1, n - 1),
-                                         cols=range(n),
+                                         rows=range(1, size - 1),
+                                         cols=range(size),
                                          mask=[(1, 0), (-1, 0)])
     # Apply row-wise, left
     changes |= eliminate_contiguous_line(cells,
-                                         rows=range(n),
-                                         cols=range(n - 2),
+                                         rows=range(size),
+                                         cols=range(size - 2),
                                          mask=[(0, 1), (0, 2)])
     # Apply row-wise, right
     changes |= eliminate_contiguous_line(cells,
-                                         rows=range(n),
-                                         cols=range(2, n),
+                                         rows=range(size),
+                                         cols=range(2, size),
                                          mask=[(0, -1), (0, -2)])
     # Apply row-wise, gap
     changes |= eliminate_contiguous_line(cells,
-                                         rows=range(n),
-                                         cols=range(1, n - 1),
+                                         rows=range(size),
+                                         cols=range(1, size - 1),
                                          mask=[(0, 1), (0, -1)])
     return changes
 
@@ -144,15 +144,13 @@ def full_colour(problem):
     changes have been made, False otherwise.
     """
     changes = False
-    n = problem['size']
-    cells_same_colour = n // 2
+    size = problem['size']
+    cells_same_colour = size // 2
     cells = problem['cells']
     # See if each row already has all the erquired cells of one colour
-    for row in range(n):
-        reds = len(filter(lambda c: c == 'r',
-                          (cells[(row, col)] for col in range(n))))
-        blues = len(filter(lambda c: c == 'b',
-                           (cells[(row, col)] for col in range(n))))
+    for row in range(size):
+        reds = len(1 for col in range(size) if cells[(row, col)] == 'r')
+        blues = len(1 for col in range(size) if cells[(row, col)] == 'b')
         if reds == blues == cells_same_colour:
             continue  # Nothing to do here, all cells set
         if reds == cells_same_colour:
@@ -161,16 +159,14 @@ def full_colour(problem):
             new_colour = 'r'  # All blues set, red blue to update this row
         else:
             continue  # The required number is not reached by either colour
-        for col in range(n):  # Update unset cells with new colour
+        for col in range(size):  # Update unset cells with new colour
             if cells[(row, col)] == '.':
                 cells[(row, col)] = new_colour
                 changes = True
     # See if each column already has all the erquired cells of one colour
-    for col in range(n):
-        reds = len(filter(lambda c: c == 'r',
-                          (cells[(row, col)] for row in range(n))))
-        blues = len(filter(lambda c: c == 'b',
-                           (cells[(row, col)] for row in range(n))))
+    for col in range(size):
+        reds = len(1 for row in range(size) if cells[(row, col)] == 'r')
+        blues = len(1 for row in range(size) if cells[(row, col)] == 'b')
         if reds == blues == cells_same_colour:
             continue  # Nothing to do here, all cells set
         if reds == cells_same_colour:
@@ -179,14 +175,14 @@ def full_colour(problem):
             new_colour = 'r'  # All blues set, red blue to update this row
         else:
             continue  # The required number is not reached by either colour
-        for row in range(n):  # Update unset cells with new colour
+        for row in range(size):  # Update unset cells with new colour
             if cells[(row, col)] == '.':
                 cells[(row, col)] = new_colour
                 changes = True
     return changes
 
 
-def check_feasibility(problem, report=False):
+def evaluate_status(problem, report=False):
     """
     Check the state of a problem. This function does not return
     anything, but modifies the 'state' field of the problem:
@@ -201,79 +197,81 @@ def check_feasibility(problem, report=False):
     at that point, it is possible that additional violations
     exist.
     """
-    # r(): helper function to print violations if report is True
+    # helper function to print violations if report is True
     if report:
-        def r(*args):
-            print(args)
+        def conditional_print(*args):
+            """print() wrapper for logging violations"""
+            print args
     else:
-        def r(*args):
+        def conditional_print(*args):
+            """print() wrapper to skip logging"""
             pass
   
     cells = problem['cells']
-    n = problem['size']
+    size = problem['size']
 
     # row_or_col will be used first as column index, then as row index
     # to avoid doing too loops
-    for row_or_col in range(n):
+    for row_or_col in range(size):
         # Check each column
-        col = [cells[(row, row_or_col)] for row in range(n)]
-        # infeasible if colum has more than n//2 reds
-        if len(filter(lambda c: c == 'r', col)) > n // 2:
+        col = [cells[(row, row_or_col)] for row in range(size)]
+        # infeasible if colum has more than size//2 reds
+        if sum(1 for cell in col if cell == 'r') > size // 2:
             problem['state'] = 'infeasible'
-            r('too many reds on column', row_or_col)
+            conditional_print('too many reds on column', row_or_col)
             return
         # infeasible if colum has more than n//2 blues
-        if len(filter(lambda c: c == 'b', col)) > n // 2:
+        if sum(1 for cell in col if cell == 'b') > size // 2:
             problem['state'] = 'infeasible'
-            r('too many blues on column', row_or_col)
+            conditional_print('too many blues on column', row_or_col)
             return
         # infeasible if three adjacent cells of the same colour
-        for s in range(n - 2):
-            if col[s] == col[s+1] == col[s+2] != '.':
+        for pos in range(size - 2):
+            if col[pos] == col[pos+1] == col[pos+2] != '.':
                 problem['state'] = 'infeasible'
-                r('three in a row - column', row_or_col)
+                conditional_print('three in a row - column', row_or_col)
                 return
         # check if the rest of the columns are duplicates of this one
-        for other_col in range(row_or_col + 1, n):
-            col2 = [cells[(row, other_col)] for row in range(n)]
+        for other_col in range(row_or_col + 1, size):
+            col2 = [cells[(row, other_col)] for row in range(size)]
             same_reds = sum(1 for c1, c2 in zip(col, col2) if c1 == c2 == 'r')
             same_blues = sum(1 for c1, c2 in zip(col, col2) if c1 == c2 == 'b')
-            # if one colour is fully duplicated, the column must be too
+            # if one colour is fully duplicated, the column must be, too,
             # even if some cells are still unset (they will be set to the
             # other colour by constraint propagation)
-            if same_reds >= n // 2 or same_blues >= n // 2:
+            if same_reds >= size // 2 or same_blues >= size // 2:
                 problem['state'] = 'infeasible'
-                r('duplicate columns', row_or_col, other_col)
+                conditional_print('duplicate columns', row_or_col, other_col)
                 return
 
         # Check each row
-        row = [cells[(row_or_col, col)] for col in range(n)]
+        row = [cells[(row_or_col, col)] for col in range(size)]
         # infeasible if row has more than n//2 reds
-        if len(filter(lambda c: c == 'r', row)) > n // 2:
+        if sum(1 for cell in row if cell == 'r') > size // 2:
             problem['state'] = 'infeasible'
-            r('too many reds on row', row_or_col)
+            conditional_print('too many reds on row', row_or_col)
             return
         # infeasible if row has more than n//2 blues
-        if len(filter(lambda c: c == 'b', row)) > n // 2:
+        if sum(1 for cell in row if cell == 'b') > size // 2:
             problem['state'] = 'infeasible'
-            r('too many blues on row', row_or_col)
+            conditional_print('too many blues on row', row_or_col)
             return
-        for s in range(n - 2):
-            if row[s] == row[s+1] == row[s+2] != '.':
+        for pos in range(size - 2):
+            if row[pos] == row[pos+1] == row[pos+2] != '.':
                 problem['state'] = 'infeasible'
-                r('three in a row - row', row_or_col)
+                conditional_print('three in a row - row', row_or_col)
                 return
         # check if the rest of the rows are duplicates of this one
-        for other_row in range(row_or_col + 1, n):
-            row2 = [cells[(other_row, col)] for col in range(n)]
+        for other_row in range(row_or_col + 1, size):
+            row2 = [cells[(other_row, col)] for col in range(size)]
             same_reds = sum(1 for c1, c2 in zip(row, row2) if c1 == c2 == 'r')
             same_blues = sum(1 for c1, c2 in zip(row, row2) if c1 == c2 == 'b')
             # if one colour is fully duplicated, the column must be too
             # even if some cells are still unset (they will be set to the
             # other colour by constraint propagation)
-            if same_reds >= n // 2 or same_blues >= n // 2:
+            if same_reds >= size // 2 or same_blues >= size // 2:
                 problem['state'] = 'infeasible'
-                r('duplicate rows', row_or_col, other_row)
+                conditional_print('duplicate rows', row_or_col, other_row)
                 return
 
     # check if solved
@@ -287,29 +285,29 @@ def get_undecided_cell(problem):
     Return one cell that is still unset in the problem as
     a (row, column) tuple
     """
-    n = problem['size']
-    for r in range(n):
-        for c in range(n):
-            if problem['cells'][(r, c)] == '.':
-                return r, c
+    size = problem['size']
+    for row in range(size):
+        for col in range(size):
+            if problem['cells'][(row, col)] == '.':
+                return row, col
 
 
-def choose(problem, r, c, colour):
+def choose(problem, row, col, colour):
     """
     Return a new problem that is a copy of the one provided with
-    the (r, c) cell set to colour
+    the (row, col) cell set to colour
 
     This function is used for branching, and prints the selection
     made.
     """
     new_problem = problem.copy()
     new_problem['cells'] = problem['cells'].copy()
-    new_problem['cells'][(r, c)] = colour
-    print "choosing:", r, c, colour
+    new_problem['cells'][(row, col)] = colour
+    print "choosing:", row, col, colour
     return new_problem
 
 
-def refine(problem):
+def constraint_propagation(problem):
     """
     Fill in inferrable cells by constraint propagation
 
@@ -321,7 +319,6 @@ def refine(problem):
         changes = False
         changes |= eliminate_contiguous(problem)
         changes |= full_colour(problem)
-    check_feasibility(problem)
 
 
 def solve(problem):
@@ -336,7 +333,7 @@ def solve(problem):
     # - Fill in inferrable cells (constraint propagation)
     # - If this fully solves the problem, or identifies
     #   infeasibility, return the problem
-    # - Otherwise select un unset cell, try to solve the
+    # - Otherwise select an unset cell, try to solve the
     #   problem with that cell set to 'r', if it doesn't
     #   succeed try 'b' in that cell
     # This results in a depth-first search of the solution
@@ -345,37 +342,49 @@ def solve(problem):
     # abandoning a branch as soon as infeasibility is
     # identified, even if not all cells are set)
 
-    refine(problem)
+    constraint_propagation(problem)
+    evaluate_status(problem)
     if problem['state'] in ('solved', 'infeasible'):
         return problem
 
     # select cell to branch on
-    r, c = get_undecided_cell(problem)
+    row, col = get_undecided_cell(problem)
 
     # recursion on red branch
-    new_problem = choose(problem, r, c, 'r')
+    new_problem = choose(problem, row, col, 'r')
     candidate_sol = solve(new_problem)
     if candidate_sol['state'] == 'solved':
         return candidate_sol
 
     # recursion on blue branch
-    new_problem = choose(problem, r, c, 'b')
+    new_problem = choose(problem, row, col, 'b')
     candidate_sol = solve(new_problem)
     return candidate_sol  # solved or infeasible
 
 
-if __name__ == '__main__':
+def main():
+    """
+    Read problem from file passed as argument to the script and solve it
+
+    Show whether the problem was solved or infeasible, print out the solution
+    (or the last try if infeasible); if infeasible, detail the first broken
+    constraint found in the final try
+    """
     if len(sys.argv) < 2:
         print "No puzzle file provided\nUsage: python ohhi.py <filename>"
         print
         exit(1)
     
-    filename = sys.argv[1]
-    problem = read_problem(filename)
-    solution = solve(problem)
+    from_file = sys.argv[1]
+    the_problem = read_problem(from_file)
+    solution = solve(the_problem)
 
     print "Problem", solution['state']
     print_problem(solution)
     # If infeasible, show why
     if solution['state'] == 'infeasible':
-        check_feasibility(solution, report=True)
+        evaluate_status(solution, report=True)
+
+
+if __name__ == '__main__':
+    main()
