@@ -22,7 +22,7 @@ def get_undecided_variable(problem):
     """
     Return one variable that is still unset in the problem
     """
-    for variable, domain in problem['variables'].iteritems():
+    for variable, domain in problem['variables'].items():
         if len(domain) > 1:  # Undecided if more than 1 value possible
             return variable
 
@@ -38,7 +38,7 @@ def fix_variable(problem, pivot, value):
     new_problem = problem.copy()
     new_problem['variables'] = problem['variables'].copy()
     new_problem['variables'][pivot] = value
-    print "choosing:", pivot, value
+    print(f'choosing: {pivot} {value}')
     return new_problem
 
 

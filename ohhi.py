@@ -9,7 +9,6 @@ red cell, 'b' for a blue cell and '.' for an undefined
 cell.
 """
 
-from __future__ import division
 import sys
 import cp_solver
 
@@ -48,9 +47,9 @@ def print_problem(problem):
             cell = cells[(row, col)]
             if len(cell) > 1:
                 cell = '.'
-            print cell,
-        print
-    print
+            print(cell, end='')
+        print()
+    print()
 
 
 def determined(problem):
@@ -207,7 +206,7 @@ def evaluate_state(problem, report=False):
     def conditional_print(*args):
         """print() wrapper for logging violations"""
         if report:
-            print args
+            print(*args)
   
     cells = problem['variables']
     size = problem['size']
@@ -304,15 +303,15 @@ def main():
     constraint found in the final try
     """
     if len(sys.argv) < 2:
-        print "No puzzle file provided\nUsage: python ohhi.py <filename>"
-        print
+        print('No puzzle file provided\nUsage: python ohhi.py <filename>')
+        print()
         exit(1)
     
     from_file = sys.argv[1]
     the_problem = read_problem(from_file)
     solution = solve(the_problem)
 
-    print "Problem", solution['state']
+    print(f'''Problem {solution['state']}''')
     print_problem(solution)
     # If infeasible, show why
     if solution['state'] == 'infeasible':
